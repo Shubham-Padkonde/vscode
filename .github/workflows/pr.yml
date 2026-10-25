@@ -516,7 +516,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-unit-tests == 'true' }}
-      job_name: Electron-Unit
       electron_tests: true
       integration_tests: false
       smoke_tests: false
@@ -529,7 +528,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      job_name: Electron
       electron_tests: true
       unit_tests: false
       smoke_tests: false
@@ -549,7 +547,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-agent-host-e2e == 'true' }}
-      job_name: Agent-Host-E2E
       electron_tests: true
       unit_tests: false
       integration_tests: false
@@ -571,7 +568,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      job_name: Electron-Smoke
       electron_tests: true
       unit_tests: false
       integration_tests: false
@@ -585,7 +581,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.selected-browser-unit-tests == 'true' }}
-      job_name: Browser
       browser_tests: true
       integration_tests: false
       smoke_tests: false
@@ -598,7 +593,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.browser-integration == 'true' }}
-      job_name: Browser
       browser_tests: true
       unit_tests: false
 
@@ -609,7 +603,6 @@ jobs:
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.product-tests == 'true' }}
-      job_name: Remote
       remote_tests: true
 
   copilot-check-test-cache:
@@ -784,7 +777,7 @@ jobs:
     name: Copilot - Test (Windows)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: vscode-large-runners-windows-8-core
     permissions:
       contents: read
     steps:
