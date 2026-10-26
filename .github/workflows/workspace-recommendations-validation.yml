@@ -1,0 +1,81 @@
+name: Workspace recommendation regression validation
+on:
+  push:
+    branches: [ci/workspace-recommendations-validation]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  electron-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      npm_config_arch: x64
+      VSCODE_ARCH: x64
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 59db5b28f3e3bd804be7e2b66854aa7f1a4c623e
+          fetch-depth: 2
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: .nvmrc
+      - name: Install system dependencies
+        run: |
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config xvfb libgtk-3-0 libxkbfile-dev libkrb5-dev libgbm1 rpm
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Install build dependencies
+        working-directory: build
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install dependencies using upstream Linux toolchain
+        run: |
+          source ./build/azure-pipelines/linux/setup-env.sh
+          npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Transpile client and download Electron
+        run: |
+          npm run build-fast -- --client-only
+          npm run electron
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lint changed source and tests
+        run: npm run eslint -- src/vs/workbench/contrib/extensions/browser/extensionRecommendationsService.ts src/vs/workbench/contrib/extensions/test/electron-browser/extensionRecommendationsService.test.ts
+      - name: Run recommendation suite with fix
+        run: |
+          xvfb-run -a ./scripts/test.sh --runGlob '**/extensionRecommendationsService.test.js' --grep 'ExtensionRecommendationsService Test' --tfs recommendations-fixed
+      - name: Prove new late-file regressions fail on unchanged source
+        run: |
+          source_file=src/vs/workbench/contrib/extensions/browser/extensionRecommendationsService.ts
+          git show HEAD^:"$source_file" > "$source_file"
+          npm run build-fast -- --client-only
+          set +e
+          xvfb-run -a ./scripts/test.sh --runGlob '**/extensionRecommendationsService.test.js' --grep 'Prompt when recommendations are' --tfs recommendations-baseline
+          result=$?
+          set -e
+          test "$result" -ne 0
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('test-results/linux-x64-recommendations-baseline-results.xml').getroot()
+          cases = root.findall('.//testcase')
+          assert len(cases) == 2, [(case.attrib, list(case)) for case in cases]
+          for case in cases:
+              failure = case.find('failure')
+              assert failure is not None, case.attrib
+              assert 'false' in (failure.text or '') and 'true' in (failure.text or ''), failure.text
+          print('Both late-file regressions fail on baseline with false != true.')
+          PY
+          git restore --source=HEAD -- "$source_file"
+          git diff --exit-code
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recommendation-test-results
+          path: test-results/
+          if-no-files-found: warn
